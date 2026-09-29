@@ -1,0 +1,11 @@
+# Bot tokenni @BotFather dan oling
+BOT_TOKEN=YOUR_NEW_TOKEN_HERE
+
+# Vergul bilan ajratilgan admin Telegram ID'lari
+ADMIN_IDS=191853936
+
+# Ma'lumotlar bazasi yo'li
+DB_PATH=health.db
+
+# Yordam kontakti
+SUPPORT_USERNAME=@muhammadali_77
