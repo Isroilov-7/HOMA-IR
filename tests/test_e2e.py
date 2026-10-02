@@ -109,8 +109,12 @@ async def h(tmp_db):
 
 
 async def test_onboarding_intro_prep_and_mandatory_full_name(h):
-    out = texts(await h.text("/start"))
-    assert "Metabolik skrining" in out and "Tahlilga to'g'ri tayyorgarlik" in out
+    calls = await h.text("/start")
+    out = texts(calls)
+    assert "Qandingiz normal" in out and "https://t.me/HomaIR_bot" in out and "Tahlilga to'g'ri tayyorgarlik" in out
+    share = [b.url for c in calls if getattr(c, "reply_markup", None)
+             for row in c.reply_markup.inline_keyboard for b in row if b.url]
+    assert share and "t.me/share/url" in share[0]
     assert "Rozimisiz" not in out and "Ma'lumotlaringiz" not in out  # eski rozilik bloki olib tashlangan
     assert "Ism va familiyangizni" in texts(await h.click("begin"))
     assert "to'liq yozing" in texts(await h.text("Vali"))       # bitta so'z — qabul qilinmaydi

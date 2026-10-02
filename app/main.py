@@ -9,7 +9,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand, BotCommandScopeChat, ErrorEvent
 
-from app import __version__, db
+from app import __version__, db, ui
 from app.config import settings
 from app.handlers import build_router
 from app.reminders import reminder_loop
@@ -28,7 +28,21 @@ USER_COMMANDS = [
 ]
 
 
+async def _set_profile(bot: Bot) -> None:
+    """Telegram qidiruvi (nom) va «Bu bot nima qila oladi?» matnlari. Faqat o'zgarganda yuboriladi."""
+    try:
+        if (await bot.get_my_name()).name != ui.BOT_NAME:
+            await bot.set_my_name(name=ui.BOT_NAME)
+        if (await bot.get_my_description()).description != ui.BOT_DESCRIPTION:
+            await bot.set_my_description(description=ui.BOT_DESCRIPTION)
+        if (await bot.get_my_short_description()).short_description != ui.BOT_SHORT_DESCRIPTION:
+            await bot.set_my_short_description(short_description=ui.BOT_SHORT_DESCRIPTION)
+    except Exception:  # limit (masalan, nomni tez-tez o'zgartirish) botni to'xtatmasin
+        log.warning("Bot profilini yangilab bo'lmadi", exc_info=True)
+
+
 async def _set_commands(bot: Bot) -> None:
+    await _set_profile(bot)
     await bot.set_my_commands(USER_COMMANDS)
     for admin_id in settings.admin_ids:
         try:

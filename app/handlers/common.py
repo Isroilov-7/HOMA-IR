@@ -6,7 +6,7 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import BufferedInputFile, CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, LinkPreviewOptions, Message
 
 from app import db, ui
 from app.utils import esc, valid_full_name
@@ -49,7 +49,8 @@ async def cmd_start(m: Message, state: FSMContext):
     if user:  # oldin anonim bo'lgan — faqat ism so'raladi
         await ask_name(m, state)
         return
-    await m.answer(ui.INTRO)
+    await m.answer(ui.INTRO, link_preview_options=LinkPreviewOptions(is_disabled=True),
+                   reply_markup=ui.kb([("📤 Do'stlarga ulashish", ui.share_url())]))
     await m.answer(ui.PREP, reply_markup=ui.kb([("▶️ Boshlash", "begin")]))
 
 

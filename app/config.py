@@ -26,6 +26,7 @@ class Settings:
     db_path: str = field(default_factory=lambda: os.getenv("DB_PATH", "health.db"))
     backup_dir: str = field(default_factory=lambda: os.getenv("BACKUP_DIR", "backups"))
     backup_keep_days: int = field(default_factory=lambda: int(os.getenv("BACKUP_KEEP_DAYS", "30")))
+    bot_username: str = field(default_factory=lambda: os.getenv("BOT_USERNAME", "HomaIR_bot").lstrip("@"))
     support: str = field(default_factory=lambda: os.getenv("SUPPORT_USERNAME", "@muhammadali_77"))
     # Qayta tekshiruv eslatmasi (kun). 0 — o'chirilgan.
     reminder_days: int = field(default_factory=lambda: int(os.getenv("REMINDER_DAYS", "90")))
