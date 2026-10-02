@@ -15,7 +15,7 @@ fayllaringizni ko'rmaydi, faqat o'zi yaratgan fayllar bilan ishlaydi.
 **1. Kompyuteringizda (Windows) ruxsat olish.**
 https://rclone.org/downloads/ dan Windows uchun zip'ni yuklab oching. Papkada `cmd` oching:
 ```
-rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ=="
+rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"
 ```
 Brauzer ochiladi, Google akkauntingiz bilan kiring va ruxsat bering. Terminalda
 `--->` va `<---` orasida `{"access_token":...}` ko'rinishidagi matn chiqadi.
