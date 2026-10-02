@@ -39,3 +39,11 @@ def esc(text: object) -> str:
 
 def fmt_num(value: float | None, digits: int = 2) -> str:
     return "—" if value is None else f"{value:.{digits}f}"
+
+
+def valid_full_name(name: str) -> bool:
+    """Ism-familiya: 2–60 belgi, kamida 2 so'z, har so'zda harf bor, raqamsiz."""
+    words = name.split()
+    return (2 <= len(name) <= 60 and len(words) >= 2 and not name.startswith("/")
+            and not any(ch.isdigit() for ch in name)
+            and all(any(ch.isalpha() for ch in w) for w in words))

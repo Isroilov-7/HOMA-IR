@@ -108,28 +108,82 @@ async def h(tmp_db):
     return Harness()
 
 
-async def test_onboarding_shows_intro_and_consent(h):
+async def test_onboarding_intro_prep_and_mandatory_full_name(h):
     out = texts(await h.text("/start"))
-    assert "Metabolik skrining" in out and "Rozimisiz" in out
-    out = texts(await h.click("consent:yes"))
-    assert "ismingiz" in out.lower()
-    out = texts(await h.click("anon:no"))
-    assert "Ism va familiyangizni" in out
-    out = texts(await h.text("Aliyev Vali"))
-    assert "Ro'yxatdan o'tdingiz" in out
-    assert (await db.get_user(USER_ID))["display_name"] == "Aliyev Vali"
+    assert "Metabolik skrining" in out and "Tahlilga to'g'ri tayyorgarlik" in out
+    assert "Rozimisiz" not in out and "Ma'lumotlaringiz" not in out  # eski rozilik bloki olib tashlangan
+    assert "Ism va familiyangizni" in texts(await h.click("begin"))
+    assert "to'liq yozing" in texts(await h.text("Vali"))       # bitta so'z — qabul qilinmaydi
+    assert "to'liq yozing" in texts(await h.text("Ali 123"))    # raqam — qabul qilinmaydi
+    assert "Ro'yxatdan o'tdingiz" in texts(await h.text("Aliyev Vali"))
+    user = await db.get_user(USER_ID)
+    assert user["display_name"] == "Aliyev Vali" and user["is_anonymous"] == 0
+
+
+async def test_old_anonymous_user_is_asked_for_name(h):
+    await db.save_user(USER_ID, "u", "Anonim-0001", None, True)
+    assert "Ism va familiyangizni" in texts(await h.text("/start"))
+    await h.text("Karimov Olim")
+    assert (await db.get_user(USER_ID))["is_anonymous"] == 0
+    await db.save_user(USER_ID, "u", "Anonim-0001", None, True)
+    assert "Ism va familiyangizni" in texts(await h.click("quick:start"))
 
 
 async def _register(h):
     await h.text("/start")
-    await h.click("consent:yes")
-    await h.click("anon:no")
+    await h.click("begin")
     await h.text("Aliyev Vali")
+
+
+async def test_questions_have_no_cancel_button(h):
+    await _register(h)
+    calls = await h.click("quick:start") + await h.click("qname:me") + await h.text("40") + await h.text("5")
+    calls += await h.click("screen:start") + await h.click("sex:M")
+    for c in calls:
+        markup = getattr(c, "reply_markup", None)
+        if markup:
+            cbs = [b.callback_data for row in markup.inline_keyboard for b in row]
+            assert "cancel" not in cbs
+
+
+async def test_quick_without_insulin_saves_glucose_and_hooks(h):
+    await _register(h)
+    await h.click("quick:start")
+    await h.click("qname:me")
+    await h.text("40")
+    await h.text("5.9")
+    out = texts(await h.click("noins"))
+    assert "Glukoza natijasi" in out and "prediabet" in out and "insulin tahlili kerak" in out
+    assert "14 kundan keyin" in out
+    row = await db.get_screening(USER_ID)
+    assert row["fasting_glucose"] == 5.9 and row["homa_ir"] is None
+    # ikkinchi marta — oldingi glukoza bilan solishtiriladi
+    await h.click("quick:start")
+    await h.click("qname:me")
+    await h.text("40")
+    await h.text("5.2")
+    assert "Oldingi glukoza bilan" in texts(await h.click("noins"))
+    pdf = docs(await h.click("pdf:last"))
+    assert pdf  # insulinsiz natijaning PDF'i ham yaratiladi
+
+
+async def test_full_screening_without_insulin(h):
+    await _register(h)
+    await h.click("screen:start")
+    await h.click("sex:F")
+    for v in ("35", "70", "165", "85"):
+        await h.text(v)
+    for cb in ("act:1", "veg:1", "bp:0", "hg:0", "fam:none", "lab:yes"):
+        await h.click(cb)
+    await h.text("5.0")
+    out = texts(await h.click("noins"))
+    assert "FINDRISC:" in out and "Glukoza: 5.00" in out and "insulin tahlili kerak" in out
 
 
 async def test_quick_flow_twice_compares_with_previous(h):
     await _register(h)
     await h.click("quick:start")
+    assert "to'liq yozing" in texts(await h.text("Nodira"))
     await h.text("Karimova Nodira")
     await h.text("45")
     await h.text("5,8")
@@ -149,7 +203,7 @@ async def test_quick_flow_twice_compares_with_previous(h):
 async def test_quick_validation_messages(h):
     await _register(h)
     await h.click("quick:start")
-    await h.text("Ali")
+    await h.text("Ali Valiyev")
     assert "butun son" in texts(await h.text("abc"))
     await h.text("30")
     assert "2–30" in texts(await h.text("1"))
@@ -182,14 +236,14 @@ async def test_full_screening_skip_labs(h):
     for cb in ("act:1", "veg:1", "bp:0", "hg:0", "fam:none"):
         await h.click(cb)
     out = texts(await h.click("lab:skip"))
-    assert "FINDRISC: 0/26" in out and "HOMA-IR" not in out
+    assert "FINDRISC: 0/26" in out and "HOMA-IR: " not in out and "insulin tahlili kerak" in out
 
 
 async def test_cancel_mid_flow(h):
     await _register(h)
     await h.click("quick:start")
-    await h.text("Ali")
-    out = texts(await h.click("cancel"))
+    await h.text("Ali Valiyev")
+    out = texts(await h.text("/cancel"))
     assert "Bekor qilindi" in out
     # endi raqam yozilsa so'rovnoma davom etmaydi — menyu chiqadi
     assert "bo'limni tanlang" in texts(await h.text("45"))
@@ -253,9 +307,8 @@ def test_html_validator_catches_raw_less_than():
 
 async def test_html_escaping_of_user_name(h):
     await h.text("/start")
-    await h.click("consent:yes")
-    await h.click("anon:no")
-    await h.text("<script>&Ali")  # validator FakeSession ichida tekshiradi
+    await h.click("begin")
+    await h.text("<b>Ali</b> &Valiyev")  # validator FakeSession ichida tekshiradi
     await h.click("quick:start")
     await h.click("qname:me")
     await h.text("40")

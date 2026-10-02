@@ -17,6 +17,10 @@ services:
     mem_limit: 450m
     memswap_limit: 450m
     cpus: 0.5
+    # Sayt ustuvor: CPU talashilganda bot 4 baravar kam ulush oladi (standart 1024),
+    # xotira tugasa yadro avval botni to'xtatadi, saytni emas.
+    cpu_shares: 256
+    oom_score_adj: 800
     pids_limit: 128
     read_only: true
     tmpfs:

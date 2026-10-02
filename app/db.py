@@ -219,26 +219,35 @@ async def overview_counts() -> dict:
                 "SELECT COUNT(*) FROM screenings WHERE created_at >= datetime('now','-7 days')"),
             "new_users_week": await one(
                 "SELECT COUNT(*) FROM users WHERE created_at >= datetime('now','-7 days')"),
+            "no_insulin": await one(
+                "SELECT COUNT(*) FROM screenings WHERE fasting_glucose IS NOT NULL AND homa_ir IS NULL"),
             "repeat_patients": await one(
                 "SELECT COUNT(*) FROM (SELECT user_id FROM screenings "
                 "WHERE homa_ir IS NOT NULL GROUP BY user_id HAVING COUNT(*) >= 2)"),
         }
 
 
-async def due_reminders(days: int) -> list[dict]:
+async def due_reminders(days: int, incomplete_days: int | None = None) -> list[dict]:
     """
-    Oxirgi baholashi `days` kundan eski, eslatma yoqilgan va shu baholashdan
-    keyin hali eslatilmagan foydalanuvchilar.
+    Eslatma yoqilgan va oxirgi natijasidan keyin hali eslatilmagan foydalanuvchilar:
+    - oxirgi natijada HOMA-IR bor bo'lsa — `days` kundan keyin (qayta tekshiruv);
+    - HOMA-IR yo'q (insulin topshirilmagan) bo'lsa — `incomplete_days` kundan keyin.
+    Qaytaradi: user_id, display_name, last_at, complete (1/0).
     """
+    incomplete_days = days if incomplete_days is None else incomplete_days
     async with connect() as db:
         cur = await db.execute(
-            """SELECT u.user_id, u.display_name, MAX(s.created_at) AS last_at
-               FROM users u JOIN screenings s ON s.user_id = u.user_id
+            """SELECT u.user_id, u.display_name, s.created_at AS last_at,
+                      (s.homa_ir IS NOT NULL) AS complete
+               FROM users u
+               JOIN screenings s ON s.id = (
+                   SELECT id FROM screenings WHERE user_id = u.user_id
+                   ORDER BY created_at DESC, id DESC LIMIT 1)
                WHERE COALESCE(u.reminders, 1) = 1
-               GROUP BY u.user_id
-               HAVING last_at <= datetime('now', ?)
-                  AND (u.last_reminded_at IS NULL OR u.last_reminded_at < last_at)""",
-            (f"-{int(days)} days",),
+                 AND (u.last_reminded_at IS NULL OR u.last_reminded_at < s.created_at)
+                 AND s.created_at <= datetime('now',
+                       CASE WHEN s.homa_ir IS NULL THEN ? ELSE ? END)""",
+            (f"-{int(incomplete_days)} days", f"-{int(days)} days"),
         )
         return [dict(r) for r in await cur.fetchall()]
 

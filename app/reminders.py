@@ -16,16 +16,25 @@ log = logging.getLogger(__name__)
 CHECK_EVERY_SEC = 6 * 3600
 
 
+def reminder_text(complete: bool) -> str:
+    if complete:
+        return ("🔔 <b>Qayta tekshiruv vaqti</b>\n\n"
+                f"Oxirgi natijangizdan {settings.reminder_days} kun o'tdi. Och qoringa glukoza va "
+                "insulinni qayta topshirib, natijani kiriting: bot avvalgisi bilan solishtirib, "
+                "dinamikani ko'rsatadi.")
+    return ("🧪 <b>Insulin natijangiz tayyormi?</b>\n\n"
+            "Oxirgi safar faqat glukoza kiritilgan edi. Och qoringa <b>glukoza + insulin</b>ni "
+            "birga topshirsangiz, HOMA-IR (insulin rezistentligi) hisoblanadi va diabet xavfini "
+            "yillar oldin ko'rish mumkin bo'ladi. Natijani kiritish 1 daqiqa oladi.")
+
+
 async def send_due(bot: Bot) -> int:
     sent = 0
-    for u in await db.due_reminders(settings.reminder_days):
+    for u in await db.due_reminders(settings.reminder_days, settings.insulin_reminder_days):
         try:
             await bot.send_message(
                 u["user_id"],
-                "🔔 <b>Qayta tekshiruv vaqti</b>\n\n"
-                f"Oxirgi natijangizdan {settings.reminder_days} kun o'tdi. Och qoringa glukoza va "
-                "insulinni qayta topshirib, natijani kiriting: bot avvalgisi bilan solishtirib, "
-                "dinamikani ko'rsatadi.",
+                reminder_text(bool(u["complete"])),
                 reply_markup=ui.kb([("⚡ Tezkor HOMA-IR", "quick:start")],
                                    [("🔕 Eslatmani o'chirish", "remind:toggle")]),
             )

@@ -18,6 +18,8 @@ from app.calculator import (
     combined_risk_report,
     quick_report,
 )
+from app.config import settings
+from app.handlers.common import ask_name, needs_name
 from app.handlers.quick import ask_glucose, ask_insulin, compare_line, previous_homa, read_glucose, read_insulin
 from app.utils import esc, parse_number
 
@@ -44,7 +46,7 @@ def step(n: int, text: str) -> str:
     return f"<b>{n}/{TOTAL}.</b> {text}"
 
 
-YES_NO = lambda p: ui.with_cancel([("✅ Ha", f"{p}:1"), ("❌ Yo'q", f"{p}:0")])  # noqa: E731
+YES_NO = lambda p: ui.opt_kb([("✅ Ha", f"{p}:1"), ("❌ Yo'q", f"{p}:0")])  # noqa: E731
 
 
 @router.message(Command("screen"))
@@ -53,21 +55,25 @@ async def screen_start(event: Message | CallbackQuery, state: FSMContext):
     msg = event.message if isinstance(event, CallbackQuery) else event
     if isinstance(event, CallbackQuery):
         await event.answer()
-    if not await db.get_user(event.from_user.id):
-        await msg.answer("Avval /start bosing va rozilik bering.")
-        return
+    user = await db.get_user(event.from_user.id)
     await state.clear()
+    if needs_name(user):
+        if not user:
+            await msg.answer("Avval /start bosing.")
+        else:
+            await ask_name(msg, state)
+        return
     await msg.answer(
         "🩺 <b>To'liq skrining</b>: 8 ta FINDRISC savoli + 2 ta ixtiyoriy laborator ko'rsatkich "
         "(~2 daqiqa)\n\n" + step(1, "Jinsingiz:"),
-        reply_markup=ui.with_cancel([("👨 Erkak", "sex:M"), ("👩 Ayol", "sex:F")]))
+        reply_markup=ui.opt_kb([("👨 Erkak", "sex:M"), ("👩 Ayol", "sex:F")]))
     await state.set_state(Screen.sex)
 
 
 @router.callback_query(F.data.startswith("sex:"), Screen.sex)
 async def set_sex(c: CallbackQuery, state: FSMContext):
     await state.update_data(sex=c.data.split(":")[1])
-    await c.message.edit_text(step(2, "Yoshingiz (yil)?"), reply_markup=ui.with_cancel())
+    await c.message.edit_text(step(2, "Yoshingiz (yil)?"), reply_markup=ui.opt_kb())
     await state.set_state(Screen.age)
     await c.answer()
 
@@ -86,7 +92,7 @@ async def set_age(m: Message, state: FSMContext):
     if v is None:
         return
     await state.update_data(age=int(v))
-    await m.answer(step(3, "Vazningiz (kg)? Masalan 72.5"), reply_markup=ui.with_cancel())
+    await m.answer(step(3, "Vazningiz (kg)? Masalan 72.5"), reply_markup=ui.opt_kb())
     await state.set_state(Screen.weight)
 
 
@@ -96,7 +102,7 @@ async def set_weight(m: Message, state: FSMContext):
     if v is None:
         return
     await state.update_data(weight=v)
-    await m.answer(step(4, "Bo'yingiz (sm)? Masalan 170"), reply_markup=ui.with_cancel())
+    await m.answer(step(4, "Bo'yingiz (sm)? Masalan 170"), reply_markup=ui.opt_kb())
     await state.set_state(Screen.height)
 
 
@@ -107,7 +113,7 @@ async def set_height(m: Message, state: FSMContext):
         return
     await state.update_data(height=v)
     await m.answer(step(5, "Bel aylanasi (sm)?\n<i>Kindik sathida, nafas chiqargandan keyin o'lchang.</i>"),
-                   reply_markup=ui.with_cancel())
+                   reply_markup=ui.opt_kb())
     await state.set_state(Screen.waist)
 
 
@@ -155,7 +161,7 @@ async def set_hg(c: CallbackQuery, state: FSMContext):
     await state.update_data(high_glucose_hist=c.data.endswith("1"))
     await c.message.edit_text(
         step(10, "Qarindoshlaringizda <b>diabet</b> bormi?"),
-        reply_markup=ui.with_cancel(
+        reply_markup=ui.opt_kb(
             [("Yo'q", "fam:none")],
             [("Bobo/buvi, amaki/tog'a, xola/amma", "fam:second")],
             [("Ota-ona, aka-uka, opa-singil, farzand", "fam:first")],
@@ -209,6 +215,12 @@ async def set_insulin(m: Message, state: FSMContext):
         return
     await state.update_data(fasting_insulin=ins)
     await finalize(m, state, m.from_user.id)
+
+
+@router.callback_query(F.data == "noins", Screen.insulin)
+async def no_insulin(c: CallbackQuery, state: FSMContext):
+    await c.answer()
+    await finalize(c.message, state, c.from_user.id)
 
 
 async def finalize(msg: Message, state: FSMContext, user_id: int) -> None:
@@ -271,5 +283,7 @@ async def finalize(msg: Message, state: FSMContext, user_id: int) -> None:
         cmp = compare_line(prev, lab["homa_ir"])
         if cmp:
             lines.append(cmp)
+    if not lab:
+        lines += ["", ui.NO_INSULIN_HOOK.format(days=settings.insulin_reminder_days)]
     lines += ["", ui.DISCLAIMER]
     await msg.answer("\n".join(lines), reply_markup=ui.result_kb(sid))

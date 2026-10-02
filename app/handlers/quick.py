@@ -13,8 +13,10 @@ from aiogram.types import CallbackQuery, Message
 
 from app import db, ui
 from app.analytics import verdict
-from app.calculator import classify_glucose, glucose_from_input, quick_report
-from app.utils import esc, parse_number
+from app.calculator import classify_glucose, glucose_from_input, glucose_only_recs, quick_report
+from app.config import settings
+from app.handlers.common import ask_name, needs_name
+from app.utils import esc, parse_number, valid_full_name
 
 router = Router(name="quick")
 
@@ -30,33 +32,40 @@ def same_patient(a: str | None, b: str | None) -> bool:
     return " ".join((a or "").lower().split()) == " ".join((b or "").lower().split())
 
 
-async def previous_homa(user_id: int, patient_name: str, exclude_id: int) -> dict | None:
+async def previous_with(user_id: int, patient_name: str, exclude_id: int, key: str = "homa_ir") -> dict | None:
+    """Shu bemorning `key` ko'rsatkichi bor oldingi natijasi."""
     for r in await db.user_screenings(user_id, limit=200):
-        if r["id"] != exclude_id and r.get("homa_ir") is not None and same_patient(r.get("patient_name"), patient_name):
+        if r["id"] != exclude_id and r.get(key) is not None and same_patient(r.get("patient_name"), patient_name):
             return r
     return None
 
 
-def compare_line(prev: dict | None, homa: float) -> str:
+async def previous_homa(user_id: int, patient_name: str, exclude_id: int) -> dict | None:
+    return await previous_with(user_id, patient_name, exclude_id, "homa_ir")
+
+
+def compare_line(prev: dict | None, value: float, key: str = "homa_ir", label: str = "Oldingi natija bilan",
+                 digits: int = 2) -> str:
     if not prev:
         return ""
-    pct = (homa - prev["homa_ir"]) / prev["homa_ir"] * 100 if prev["homa_ir"] else None
+    old = prev[key]
+    pct = (value - old) / old * 100 if old else None
     icon, word = verdict(pct)
     pct_txt = f" ({pct:+.0f}%)".replace("-", "−") if pct is not None else ""
-    return f"\n{icon} <b>Oldingi natija bilan:</b> {prev['homa_ir']:.2f} → {homa:.2f}{pct_txt}, {word}"
+    return f"\n{icon} <b>{label}:</b> {old:.{digits}f} → {value:.{digits}f}{pct_txt}, {word}"
 
 
 async def ask_glucose(target: Message, prefix: str = "") -> None:
     await target.answer(
         f"{prefix}🩸 Och qoringa <b>glukoza</b> qiymati?\n"
         "<i>mmol/L, masalan 5.4. mg/dL kiritsangiz (masalan 97), avtomatik o'giriladi.</i>",
-        reply_markup=ui.with_cancel())
+        reply_markup=ui.opt_kb())
 
 
 async def ask_insulin(target: Message, prefix: str = "") -> None:
     await target.answer(
         f"{prefix}💉 Och qoringa <b>insulin</b> qiymati?\n<i>μU/mL (mkME/ml), masalan 11.2</i>",
-        reply_markup=ui.with_cancel())
+        reply_markup=ui.opt_kb([("❌ Insulin tahlili hozircha yo'q", "noins")]))
 
 
 def read_glucose(text: str | None) -> tuple[float | None, str]:
@@ -83,42 +92,43 @@ async def quick_start(event: Message | CallbackQuery, state: FSMContext):
     if isinstance(event, CallbackQuery):
         await event.answer()
     user = await db.get_user(event.from_user.id)
-    if not user:
-        await msg.answer("Avval /start bosing va rozilik bering.")
-        return
     await state.clear()
-    rows = []
-    if user.get("display_name") and not user.get("is_anonymous"):
-        rows.append([(f"👤 {user['display_name'][:30]}", "qname:me")])
-    rows.append([("🕶 Anonim", "qname:anon")])
+    if needs_name(user):
+        if not user:
+            await msg.answer("Avval /start bosing.")
+        else:
+            await ask_name(msg, state)
+        return
+    rows = [[(f"👤 {user['display_name'][:30]}", "qname:me")]]
     await msg.answer(
         "⚡ <b>Tezkor HOMA-IR</b> (4 ta savol)\n\n"
         "1/4. Bemorning <b>ism-familiyasini</b> yozing yoki tanlang:",
-        reply_markup=ui.with_cancel(*rows))
+        reply_markup=ui.opt_kb(*rows))
     await state.set_state(Quick.name)
 
 
 async def _set_name_and_ask_age(msg: Message, state: FSMContext, name: str) -> None:
     await state.update_data(patient_name=name)
-    await msg.answer(f"👤 {esc(name)}\n\n2/4. <b>Yoshi</b> (yil)?", reply_markup=ui.with_cancel())
+    await msg.answer(f"👤 {esc(name)}\n\n2/4. <b>Yoshi</b> (yil)?", reply_markup=ui.opt_kb())
     await state.set_state(Quick.age)
 
 
 @router.callback_query(F.data.startswith("qname:"), Quick.name)
 async def quick_name_btn(c: CallbackQuery, state: FSMContext):
     user = await db.get_user(c.from_user.id)
-    name = user["display_name"] if c.data == "qname:me" else (user or {}).get("display_name") or "Anonim"
-    if c.data == "qname:anon" and not (user or {}).get("is_anonymous"):
-        name = f"Anonim-{c.from_user.id % 10000:04d}"
     await c.answer()
+    if needs_name(user):
+        await ask_name(c.message, state)
+        return
+    name = user["display_name"]
     await _set_name_and_ask_age(c.message, state, name)
 
 
 @router.message(Quick.name, F.text)
 async def quick_name(m: Message, state: FSMContext):
     name = " ".join(m.text.split())
-    if not 2 <= len(name) <= 60 or name.startswith("/"):
-        await m.answer("Ism-familiya 2–60 belgi bo'lishi kerak:")
+    if not valid_full_name(name):
+        await m.answer("Bemorning <b>ism va familiyasini</b> to'liq yozing (kamida 2 so'z):")
         return
     await _set_name_and_ask_age(m, state, name)
 
@@ -166,6 +176,35 @@ async def quick_insulin(m: Message, state: FSMContext):
     await m.answer(format_quick(sid, data["patient_name"], data["age"], g, ins, rep)
                    + compare_line(prev, rep["homa_ir"]) + "\n\n" + ui.DISCLAIMER,
                    reply_markup=ui.result_kb(sid))
+
+
+@router.callback_query(F.data == "noins", Quick.insulin)
+async def quick_no_insulin(c: CallbackQuery, state: FSMContext):
+    """Insulin tahlili yo'q: glukoza saqlanadi, to'liq tahlil uchun motivatsiya + eslatma."""
+    await c.answer()
+    data = await state.get_data()
+    await state.clear()
+    g = data["glucose"]
+    sid = await db.save_screening({
+        "user_id": c.from_user.id, "kind": "quick", "patient_name": data["patient_name"],
+        "age": data["age"], "fasting_glucose": round(g, 2),
+    })
+    prev = await previous_with(c.from_user.id, data["patient_name"], sid, "fasting_glucose")
+    await c.message.answer(
+        format_glucose_only(sid, data["patient_name"], data["age"], g)
+        + compare_line(prev, g, "fasting_glucose", "Oldingi glukoza bilan", 1)
+        + "\n\n" + ui.NO_INSULIN_HOOK.format(days=settings.insulin_reminder_days)
+        + "\n\n" + ui.DISCLAIMER,
+        reply_markup=ui.result_kb(sid))
+
+
+def format_glucose_only(sid: int, name: str, age: int | None, g: float) -> str:
+    lines = [f"🩸 <b>Glukoza natijasi №{sid}</b>",
+             f"👤 {esc(name)}" + (f" • {age} yosh" if age else ""), "",
+             f"Och qoringa glukoza: <b>{g:.2f}</b> mmol/L ({classify_glucose(g)})", "",
+             "<b>Tavsiyalar:</b>"]
+    lines += [f"• {esc(r)}" for r in glucose_only_recs(g)]
+    return "\n".join(lines)
 
 
 def format_quick(sid: int, name: str, age: int, g: float, ins: float, rep: dict) -> str:

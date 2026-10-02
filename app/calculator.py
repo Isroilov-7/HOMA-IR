@@ -139,6 +139,18 @@ def glucose_from_input(value: float) -> tuple[float, bool]:
     return value, False
 
 
+def glucose_only_recs(glucose_mmol: float) -> list[str]:
+    """Insulin yo'q bo'lganda — faqat glukoza bo'yicha tavsiya."""
+    g_cls = classify_glucose(glucose_mmol)
+    if g_cls == "normal":
+        return ["Och qoringa glukoza normal. Insulin rezistentligini istisno qilish uchun insulin ham kerak."]
+    if g_cls == "prediabet (IFG)":
+        return ["Glukoza prediabet diapazonida: HbA1c, insulin (HOMA-IR) va endokrinolog maslahati tavsiya etiladi."]
+    if g_cls == "diabet diapazoni":
+        return ["⚠️ Glukoza ≥7.0 mmol/L: boshqa kuni qayta tekshirib, shifokorga uchrashing."]
+    return ["Glukoza past: och qolish muddati va o'lchov aniqligini tekshiring."]
+
+
 def quick_report(*, glucose: float, insulin: float, age: int | None = None) -> dict:
     """Tezkor HOMA-IR rejimi: faqat glukoza + insulin asosida to'liq xulosa."""
     homa = calculate_homa_ir(glucose, insulin)

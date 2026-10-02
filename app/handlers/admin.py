@@ -43,7 +43,7 @@ async def overview_text() -> str:
         f"👥 Foydalanuvchilar: <b>{c['users']}</b> (7 kunda +{c['new_users_week']})\n"
         f"📋 Jami natijalar: <b>{c['screenings']}</b>\n"
         f"   🩺 to'liq: {c['full']} • ⚡ tezkor: {c['quick']}\n"
-        f"   🧪 HOMA-IR bilan: {c['with_labs']}\n"
+        f"   🧪 HOMA-IR bilan: {c['with_labs']} • insulinsiz (faqat glukoza): {c['no_insulin']}\n"
         f"🔁 Takroriy o'lchovli bemorlar: {c['repeat_patients']}\n"
         f"📅 24 soatda: {c['today']} • 7 kunda: {c['week']}\n\n"
         f"<i>{datetime.now(TASHKENT).strftime('%d.%m.%Y %H:%M')}</i>"

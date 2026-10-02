@@ -20,14 +20,26 @@ INTRO = (
     "<i>Natija skrining hisoblanadi, tashxis emas.</i>"
 )
 
-CONSENT = (
-    "🔒 <b>Ma'lumotlardan foydalanishga rozilik</b>\n\n"
-    "• Kiritgan ma'lumotlaringiz natijani hisoblash va dinamikani ko'rsatish uchun saqlanadi.\n"
-    "• Anonim ko'rinishda (ism va Telegram ID'siz) ilmiy tadqiqotda ishlatilishi mumkin: "
-    "o'zbek populyatsiyasi uchun HOMA-IR chegaraviy qiymatini aniqlash.\n"
-    "• Uchinchi shaxslarga berilmaydi. /export: ma'lumotlaringizni olish, "
-    "/delete: to'liq o'chirish.\n\n"
-    "Rozimisiz?"
+PREP = (
+    "📌 <b>Tahlilga to'g'ri tayyorgarlik</b> (natija aniq chiqishi uchun)\n"
+    "• 8–12 soat och qoringa, ertalab 8:00–10:00 da qon topshiring\n"
+    "• Glukoza va insulinni <b>bitta qon namunasidan</b>, birga topshiring\n"
+    "• Oldingi kun og'ir jismoniy mashq va spirtli ichimlik bo'lmasin\n"
+    "• Dori qabul qilsangiz, tahlildan keyin iching\n\n"
+    "<i>«Boshlash» tugmasini bosish bilan natijalaringiz maxfiy saqlanishiga va ilmiy "
+    "tadqiqotda umumlashgan holda ishlatilishiga rozilik bildirasiz.</i>"
+)
+
+ASK_NAME = "✍️ <b>Ism va familiyangizni</b> yozing (masalan: <i>Aliyev Vali</i>):"
+
+NO_INSULIN_HOOK = (
+    "🧪 <b>HOMA-IR hisoblanmadi: insulin tahlili kerak.</b>\n"
+    "Glukoza normal bo'lsa ham, insulin rezistentligi yillar davomida sezilmasdan kechadi. "
+    "HOMA-IR uni diabetdan <b>5–10 yil oldin</b> ko'rsatib beradi.\n\n"
+    "👉 Keyingi safar laboratoriyada <b>och qoringa glukoza + insulin</b>ni birga topshiring "
+    "(bitta qon namunasi yetadi). Natijani shu yerga kiritsangiz, to'liq xulosa va oldingi "
+    "glukozangiz bilan solishtirishni beraman.\n"
+    "🔔 {days} kundan keyin eslatib qo'yaman."
 )
 
 ABOUT = (
@@ -80,11 +92,9 @@ def main_menu(user_id: int, reminders_on: bool = True) -> InlineKeyboardMarkup:
     return kb(*rows)
 
 
-CANCEL_ROW = [("✖️ Bekor qilish", "cancel")]
-
-
-def with_cancel(*rows: list[tuple[str, str]]) -> InlineKeyboardMarkup:
-    return kb(*rows, CANCEL_ROW)
+def opt_kb(*rows: list[tuple[str, str]]) -> InlineKeyboardMarkup | None:
+    """Savol tugmalari (bo'sh bo'lsa klaviaturasiz). Bekor qilish tugmasi yo'q: /cancel bor."""
+    return kb(*rows) if rows else None
 
 
 def result_kb(screening_id: int) -> InlineKeyboardMarkup:

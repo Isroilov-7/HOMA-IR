@@ -1,4 +1,4 @@
-"""Start, rozilik, bosh menyu, ma'lumot va maxfiylik buyruqlari."""
+"""Start (tanishuv + ism-familiya), bosh menyu, ma'lumot va maxfiylik buyruqlari."""
 
 import json
 
@@ -9,15 +9,23 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from app import db, ui
-from app.utils import esc
+from app.utils import esc, valid_full_name
 
 router = Router(name="common")
 
 
 class Onboard(StatesGroup):
-    consent = State()
-    name_choice = State()
     name = State()
+
+
+def needs_name(user: dict | None) -> bool:
+    """Tadqiqot uchun har foydalanuvchining ism-familiyasi kerak (eski anonimlar ham so'raladi)."""
+    return not user or bool(user.get("is_anonymous")) or not user.get("display_name")
+
+
+async def ask_name(msg: Message, state: FSMContext) -> None:
+    await msg.answer(ui.ASK_NAME)
+    await state.set_state(Onboard.name)
 
 
 async def show_menu(target: Message, user_id: int, text: str | None = None) -> None:
@@ -34,57 +42,32 @@ async def show_menu(target: Message, user_id: int, text: str | None = None) -> N
 @router.message(CommandStart())
 async def cmd_start(m: Message, state: FSMContext):
     await state.clear()
-    if await db.get_user(m.from_user.id):
+    user = await db.get_user(m.from_user.id)
+    if user and not needs_name(user):
         await show_menu(m, m.from_user.id)
         return
+    if user:  # oldin anonim bo'lgan — faqat ism so'raladi
+        await ask_name(m, state)
+        return
     await m.answer(ui.INTRO)
-    await m.answer(ui.CONSENT, reply_markup=ui.kb(
-        [("✅ Roziman", "consent:yes"), ("❌ Yo'q", "consent:no")]))
-    await state.set_state(Onboard.consent)
+    await m.answer(ui.PREP, reply_markup=ui.kb([("▶️ Boshlash", "begin")]))
 
 
-@router.callback_query(F.data == "consent:no")
-async def consent_no(c: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await c.message.edit_text(
-        "Tushunarli. Roziliksiz natijani saqlab bo'lmaydi. Fikringiz o'zgarsa /start bosing.")
+@router.callback_query(F.data == "begin")
+async def begin(c: CallbackQuery, state: FSMContext):
     await c.answer()
-
-
-@router.callback_query(F.data == "consent:yes")
-async def consent_yes(c: CallbackQuery, state: FSMContext):
-    await c.message.edit_text(
-        "Rahmat! Hisobotlarda ismingiz qanday ko'rsatilsin?",
-        reply_markup=ui.kb([("👤 Ism-familiyamni yozaman", "anon:no")],
-                           [("🕶 Anonim qolaman", "anon:yes")]),
-    )
-    await state.set_state(Onboard.name_choice)
-    await c.answer()
-
-
-@router.callback_query(F.data.startswith("anon:"), Onboard.name_choice)
-async def choose_anon(c: CallbackQuery, state: FSMContext):
-    if c.data == "anon:yes":
-        pseudo = f"Anonim-{c.from_user.id % 10000:04d}"
-        await db.save_user(c.from_user.id, c.from_user.username or "", pseudo, None, True)
-        await state.clear()
-        await c.message.edit_text(f"✅ Ro'yxatdan o'tdingiz. Anonim ID: <code>{pseudo}</code>")
-        await show_menu(c.message, c.from_user.id, "Boshlash uchun bo'limni tanlang:")
-    else:
-        await c.message.edit_text("Ism va familiyangizni yozing (masalan: <i>Aliyev Vali</i>):")
-        await state.set_state(Onboard.name)
-    await c.answer()
+    await ask_name(c.message, state)
 
 
 @router.message(Onboard.name, F.text)
 async def set_name(m: Message, state: FSMContext):
     name = " ".join(m.text.split())
-    if not 2 <= len(name) <= 60:
-        await m.answer("Ism 2–60 belgi bo'lishi kerak. Qayta yozing:")
+    if not valid_full_name(name):
+        await m.answer("Iltimos, <b>ism va familiyani</b> to'liq yozing (kamida 2 so'z, masalan: <i>Aliyev Vali</i>):")
         return
     await db.save_user(m.from_user.id, m.from_user.username or "", name, None, False)
     await state.clear()
-    await m.answer("✅ Ro'yxatdan o'tdingiz.")
+    await m.answer(f"✅ Rahmat, <b>{esc(name)}</b>! Ro'yxatdan o'tdingiz.")
     await show_menu(m, m.from_user.id, "Boshlash uchun bo'limni tanlang:")
 
 

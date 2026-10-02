@@ -87,3 +87,22 @@ async def test_backup_is_valid_copy(tmp_db):
     await db.save_user(7, "u", "Ali", None, False)
     path = backup.make_backup()
     assert sqlite3.connect(path).execute("SELECT COUNT(*) FROM users").fetchone()[0] == 1
+
+
+@pytest.mark.asyncio
+async def test_incomplete_result_reminds_sooner(tmp_db):
+    """Insulinsiz (HOMA-IR yo'q) natija — 14 kunda, to'liq natija — 90 kunda eslatiladi."""
+    await db.init_db()
+    await db.save_user(7, "u", "Ali Vali", None, False)
+    await db.save_user(8, "u", "Olim Karim", None, False)
+    await db.save_screening({"user_id": 7, "fasting_glucose": 5.5})            # insulinsiz
+    await db.save_screening({"user_id": 8, "fasting_glucose": 5.5, "homa_ir": 2.0})
+    con = sqlite3.connect(tmp_db)
+    con.execute("UPDATE screenings SET created_at = datetime('now', '-20 days')")
+    con.commit()
+    con.close()
+    due = await db.due_reminders(90, 14)
+    assert [(u["user_id"], u["complete"]) for u in due] == [(7, 0)]
+    # yangi natija kiritilsa, eslatma vaqti qaytadan hisoblanadi
+    await db.save_screening({"user_id": 7, "fasting_glucose": 5.4, "homa_ir": 2.1})
+    assert await db.due_reminders(90, 14) == []

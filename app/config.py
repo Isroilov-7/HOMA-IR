@@ -29,6 +29,8 @@ class Settings:
     support: str = field(default_factory=lambda: os.getenv("SUPPORT_USERNAME", "@muhammadali_77"))
     # Qayta tekshiruv eslatmasi (kun). 0 — o'chirilgan.
     reminder_days: int = field(default_factory=lambda: int(os.getenv("REMINDER_DAYS", "90")))
+    # Insulin topshirilmagan natijadan keyin to'liq tahlilga eslatma (kun)
+    insulin_reminder_days: int = field(default_factory=lambda: int(os.getenv("INSULIN_REMINDER_DAYS", "14")))
     # Faqat Koyeb/Render kabi platformalar uchun. Serverda bo'sh qoldiring.
     health_port: str = field(default_factory=lambda: os.getenv("HEALTH_PORT", ""))
 

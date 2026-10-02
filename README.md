@@ -7,7 +7,7 @@ baholovchi Telegram bot. Dissertatsiya tadqiqoti uchun ma'lumot yig'adi va tahli
 
 | Bo'lim | Nima qiladi |
 |---|---|
-| ⚡ **Tezkor HOMA-IR** | Faqat ism-familiya, yosh, glukoza, insulin → HOMA-IR, QUICKI, HOMA-β, tavsiyalar. Shifokor bir nechta bemorni kiritishi mumkin |
+| ⚡ **Tezkor HOMA-IR** | Faqat ism-familiya, yosh, glukoza, insulin → HOMA-IR, QUICKI, HOMA-β, tavsiyalar. Insulin bo'lmasa "hozircha yo'q": glukoza saqlanadi, 14 kunda to'liq tahlilga eslatma. Shifokor bir nechta bemorni kiritishi mumkin |
 | 🩺 **To'liq skrining** | FINDRISC (8 savol) + ixtiyoriy glukoza/insulin, BMI, bel/bo'y nisbati |
 | 📈 **Dinamika** | Oldingi va birinchi natija bilan solishtirish (±10% chegara), toifa o'zgarishi, grafik |
 | 📄 **PDF hisobot** | Shifokorga ko'rsatishga tayyor: natija, izoh, tavsiyalar, dinamika grafigi |
@@ -40,7 +40,7 @@ read -s -p "BOT_TOKEN: " T && sed -i "s|^BOT_TOKEN=.*|BOT_TOKEN=$T|" .env && uns
 mkdir -p data && chown 10001:10001 data
 docker compose up -d --build
 docker compose logs --tail 20 bot          # "HOMA-IR bot v3.0.0 ishga tushdi"
-sudo bash scripts/install_backup_cron.sh   # har kuni zaxira: data/backups
+sudo bash scripts/install_backup_cron.sh   # har kecha: data/backups + shifrlangan Google Drive
 ```
 
 Yangilash: `git pull && docker compose up -d --build`.
@@ -48,7 +48,11 @@ Eski v2 bazasi (`health.db`) bo'lsa, uni `data/health.db` ga ko'chiring. Bot ish
 uni avtomatik yangilaydi, ma'lumotlar saqlanib qoladi.
 
 Resurslar: ~180 MB RAM, admin hisobotida ~330 MB gacha. Chegara 450 MB va 0.5 CPU.
-Port ochilmaydi, konteyner faqat o'qish rejimida va root huquqisiz ishlaydi.
+Sayt ustuvor: bot past CPU ulushi (`cpu_shares: 256`) bilan ishlaydi, xotira tugasa yadro
+avval botni to'xtatadi (`oom_score_adj`). Port ochilmaydi, konteyner faqat o'qish rejimida
+va root huquqisiz ishlaydi.
+
+Google Drive'ga shifrlangan zaxira: [docs/GOOGLE_DRIVE_BACKUP.md](docs/GOOGLE_DRIVE_BACKUP.md).
 
 ## Ishlab chiqish
 

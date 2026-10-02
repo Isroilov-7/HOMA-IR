@@ -21,6 +21,7 @@ from app.calculator import (
     classify_waist,
     classify_whtr,
     combined_risk_report,
+    glucose_only_recs,
     quick_report,
     ten_year_risk,
 )
@@ -95,6 +96,16 @@ def build_pdf_report(user: dict | None, screening: dict, history: list[dict] | N
         el.append(_kv_table(lab, [4.5 * cm, 5.5 * cm, W - 10 * cm],
                             highlight=(2, HOMA_COLORS[q["level"]])))
 
+    elif g is not None:
+        el.append(Paragraph("Laborator ko'rsatkichlar (och qoringa)", s["h2"]))
+        el.append(_kv_table([
+            ["Glukoza", f"{g:.2f} mmol/L ({g * 18.016:.0f} mg/dL)", classify_glucose(g)],
+            ["Insulin", "topshirilmagan", "HOMA-IR hisoblanmadi"],
+        ], [4.5 * cm, 5.5 * cm, W - 10 * cm]))
+        el.append(Paragraph(
+            "HOMA-IR (insulin rezistentligi) uchun keyingi safar och qoringa glukoza va insulinni "
+            "bitta qon namunasidan birga topshiring.", s["small"]))
+
     if not quick and screening.get("bmi") is not None:
         el.append(Paragraph("Antropometriya", s["h2"]))
         whtr = screening.get("whtr") or (screening["waist"] / screening["height"])
@@ -117,7 +128,9 @@ def build_pdf_report(user: dict | None, screening: dict, history: list[dict] | N
         ], [4.5 * cm, W - 4.5 * cm], highlight=(1, BAND_COLORS.get(band, "#f3f4f6"))))
 
     # Tavsiyalar
-    if quick:
+    if quick and homa is None:
+        recs = glucose_only_recs(g)
+    elif quick:
         recs = quick_report(glucose=g, insulin=ins)["recommendations"]
     else:
         recs = combined_risk_report(
