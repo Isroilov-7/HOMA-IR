@@ -1,0 +1,22 @@
+# Sirlar
+.env
+.env.*
+!.env.example
+
+# Ma'lumotlar (tibbiy — hech qachon git'ga emas)
+data/
+backups/
+*.db
+*.db-shm
+*.db-wal
+*.csv
+*.xlsx
+research*.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/

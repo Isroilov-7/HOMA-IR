@@ -1,0 +1,30 @@
+# HOMA-IR bot — PlagiatX dan alohida loyiha (/opt/homa-ir).
+# Port ochilmaydi: bot Telegram'ga o'zi ulanadi (long polling).
+services:
+  bot:
+    build: .
+    image: homa-ir-bot:latest
+    container_name: homa_ir_bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_PATH: /data/health.db
+      BACKUP_DIR: /data/backups
+      TZ: Asia/Tashkent
+    volumes:
+      - ./data:/data            # baza va zaxiralar hostda: /opt/homa-ir/data
+    # Resurs chegarasi: odatda ~180 MB, admin hisobotida ~330 MB. Bot xato qilsa ham PlagiatX ishlashda davom etadi.
+    mem_limit: 450m
+    memswap_limit: 450m
+    cpus: 0.5
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

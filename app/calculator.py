@@ -1,12 +1,17 @@
 """
 Klinik hisob-kitoblar. Adabiyot havolalari kod ichida.
 
-Barcha shkalalar peer-reviewed manbalardan olingan.
-Arbitrar ballardan qochish uchun bu modul alohida test qilinishi mumkin
-(unit test qo'shish tavsiya etiladi).
+Barcha shkalalar peer-reviewed manbalardan olingan va tests/test_calculator.py
+da ma'lum qiymatlar bilan tekshiriladi.
 """
 
-from typing import Optional
+import math
+
+# Glukoza: 1 mmol/L = 18.016 mg/dL (molyar massa 180.16 g/mol)
+MGDL_PER_MMOL = 18.016
+
+# HOMA-IR insulin rezistentligi chegarasi (tadqiqotda asosiy cutoff)
+HOMA_IR_CUTOFF = 2.5
 
 
 # ==================== BMI ====================
@@ -68,6 +73,107 @@ def classify_homa_ir(homa_ir: float) -> str:
     if homa_ir < 3.8:
         return "insulin rezistentligi"
     return "yuqori insulin rezistentligi"
+
+
+def homa_ir_level(homa_ir: float) -> int:
+    """0 normal, 1 chegara, 2 IR, 3 yuqori IR — rang va saralash uchun."""
+    return 0 if homa_ir < 2.0 else 1 if homa_ir < 2.5 else 2 if homa_ir < 3.8 else 3
+
+
+def calculate_homa_beta(glucose_mmol: float, insulin_uiu: float) -> float | None:
+    """
+    Beta-hujayra funksiyasi (Matthews 1985): HOMA-%B = 20 × insulin / (glukoza − 3.5).
+    Glukoza ≤ 3.5 mmol/L bo'lsa formula ma'nosiz — None.
+    """
+    if glucose_mmol <= 3.5:
+        return None
+    return 20.0 * insulin_uiu / (glucose_mmol - 3.5)
+
+
+def calculate_quicki(glucose_mmol: float, insulin_uiu: float) -> float:
+    """
+    Katz A, et al. J Clin Endocrinol Metab 2000;85:2402-2410.
+    QUICKI = 1 / (log10(insulin μU/mL) + log10(glukoza mg/dL)); < 0.339 — IR.
+    """
+    return 1.0 / (math.log10(insulin_uiu) + math.log10(glucose_mmol * MGDL_PER_MMOL))
+
+
+def classify_quicki(quicki: float) -> str:
+    return "insulin rezistentligi" if quicki < 0.339 else "normal"
+
+
+def classify_glucose(glucose_mmol: float) -> str:
+    """
+    Och qoringa glukoza (ADA Standards of Care 2024; WHO 2006):
+    <5.6 normal; 5.6–6.9 prediabet (IFG); ≥7.0 — diabet diapazoni (qayta tasdiqlash kerak).
+    """
+    if glucose_mmol < 3.9:
+        return "past (gipoglikemiya chegarasi)"
+    if glucose_mmol < 5.6:
+        return "normal"
+    if glucose_mmol < 7.0:
+        return "prediabet (IFG)"
+    return "diabet diapazoni"
+
+
+def calculate_whtr(waist_cm: float, height_cm: float) -> float:
+    """Bel/bo'y nisbati. Ashwell M, et al. Obes Rev 2012;13:275-286: ≥0.5 — xavf oshgan."""
+    return waist_cm / height_cm
+
+
+def classify_whtr(whtr: float) -> str:
+    if whtr < 0.5:
+        return "normal"
+    if whtr < 0.6:
+        return "oshgan xavf"
+    return "yuqori xavf"
+
+
+def glucose_from_input(value: float) -> tuple[float, bool]:
+    """
+    Foydalanuvchi mg/dL kiritgan bo'lsa (masalan 95), mmol/L ga o'giradi.
+    Qaytaradi: (mmol/L, o'girildimi).
+    """
+    if value > 30:
+        return value / MGDL_PER_MMOL, True
+    return value, False
+
+
+def quick_report(*, glucose: float, insulin: float, age: int | None = None) -> dict:
+    """Tezkor HOMA-IR rejimi: faqat glukoza + insulin asosida to'liq xulosa."""
+    homa = calculate_homa_ir(glucose, insulin)
+    beta = calculate_homa_beta(glucose, insulin)
+    quicki = calculate_quicki(glucose, insulin)
+    recs: list[str] = []
+    level = homa_ir_level(homa)
+    if level == 0:
+        recs.append("Insulin sezuvchanligi normal. Yiliga 1 marta nazorat yetarli.")
+    elif level == 1:
+        recs.append("Chegaraviy qiymat: 3–6 oydan keyin qayta tekshiring.")
+        recs.append("Kechki uglevodlarni kamaytirish va kuniga 30+ daqiqa yurish foydali.")
+    elif level == 2:
+        recs.append("Insulin rezistentligi belgilari: endokrinolog maslahati tavsiya etiladi.")
+        recs.append("Vaznni 5–7% kamaytirish insulin sezuvchanligini sezilarli oshiradi.")
+    else:
+        recs.append("⚠️ Yuqori insulin rezistentligi: endokrinologga murojaat qiling.")
+        recs.append("HbA1c, lipid profil va jigar fermentlarini tekshirish tavsiya etiladi.")
+    g_cls = classify_glucose(glucose)
+    if g_cls == "prediabet (IFG)":
+        recs.append("Och qoringa glukoza prediabet diapazonida: HbA1c yoki OGTT tavsiya etiladi.")
+    elif g_cls == "diabet diapazoni":
+        recs.append("⚠️ Glukoza ≥7.0 mmol/L: boshqa kuni qayta tekshirib, shifokorga uchrashing.")
+    elif g_cls.startswith("past"):
+        recs.append("Glukoza past: och qolish muddati va o'lchov aniqligini tekshiring.")
+    return {
+        "homa_ir": homa,
+        "homa_ir_class": classify_homa_ir(homa),
+        "homa_beta": beta,
+        "quicki": quicki,
+        "quicki_class": classify_quicki(quicki),
+        "glucose_class": g_cls,
+        "level": level,
+        "recommendations": recs,
+    }
 
 
 # ==================== FINDRISC ====================
@@ -183,10 +289,11 @@ def combined_risk_report(
     *,
     findrisc: int,
     findrisc_band: str,
-    homa_ir: Optional[float],
+    homa_ir: float | None,
     bmi: float,
     waist: float,
     sex: str,
+    glucose: float | None = None,
 ) -> dict:
     """
     FINDRISC + HOMA-IR birlashtirilgan xulosasi va tavsiyalar.
@@ -233,6 +340,14 @@ def combined_risk_report(
     waist_cls = classify_waist(sex, waist)
     if waist_cls != "normal":
         recs.append(f"Bel aylanasi ({waist_cls}) — abdominal semizlik alohida xavf.")
+
+    # Glukoza bo'yicha (kiritilgan bo'lsa)
+    if glucose is not None:
+        g_cls = classify_glucose(glucose)
+        if g_cls == "prediabet (IFG)":
+            recs.append("Och qoringa glukoza prediabet diapazonida — HbA1c yoki OGTT.")
+        elif g_cls == "diabet diapazoni":
+            recs.append("⚠️ Glukoza ≥7.0 mmol/L — boshqa kuni qayta tekshirib, shifokorga uchrashing.")
 
     return {
         "combined_band": combined,

@@ -1,141 +1,83 @@
-# HOMA-IR + FINDRISC Skrining Bot v2
+# HOMA-IR • Metabolik skrining boti (v3)
 
-Diabet xavfini klinik jihatdan asosli baholovchi Telegram bot.
+Insulin rezistentligi va 2-tur diabet xavfini xalqaro validatsiyalangan usullar bilan
+baholovchi Telegram bot. Dissertatsiya tadqiqoti uchun ma'lumot yig'adi va tahlil qiladi.
 
-## Nima o'zgardi (v1 → v2)
+## Imkoniyatlar
 
-| | v1 (eski) | v2 (yangi) |
-|---|---|---|
-| Framework | aiogram 2.25 (eskirgan) | aiogram 3.13 |
-| Xavf shkalasi | O'z-o'zicha ballar | **FINDRISC** (Diabetes Care, 2003) |
-| HOMA-IR | Bor, lekin arbitrar cutoff | Matthews (1985) + Bonora (2000) |
-| Konfiguratsiya | Token kodda ochiq | `.env` |
-| Rozilik | Yo'q | Bor (informed consent) |
-| Anonim rejim | Yo'q | Bor |
-| PDF hisobot | Yo'q | Bor (reportlab) |
-| UI | Reply keyboard | Inline (zamonaviyroq) |
-| Tadqiqot eksport | Aralash Excel | Anonim CSV (SPSS/R-ga) |
-| Foydalanuvchi huquqlari | Yo'q | `/export`, `/delete` (GDPR-mos) |
+| Bo'lim | Nima qiladi |
+|---|---|
+| ⚡ **Tezkor HOMA-IR** | Faqat ism-familiya, yosh, glukoza, insulin → HOMA-IR, QUICKI, HOMA-β, tavsiyalar. Shifokor bir nechta bemorni kiritishi mumkin |
+| 🩺 **To'liq skrining** | FINDRISC (8 savol) + ixtiyoriy glukoza/insulin, BMI, bel/bo'y nisbati |
+| 📈 **Dinamika** | Oldingi va birinchi natija bilan solishtirish (±10% chegara), toifa o'zgarishi, grafik |
+| 📄 **PDF hisobot** | Shifokorga ko'rsatishga tayyor: natija, izoh, tavsiyalar, dinamika grafigi |
+| 🔔 **Eslatma** | 90 kundan keyin qayta tekshiruvga eslatadi (o'chirsa bo'ladi) |
+| 👨‍💼 **Admin panel** | Umumiy ko'rsatkichlar, tadqiqot statistikasi, dissertatsiya PDF, Excel, CSV, grafiklar, zaxira |
 
-## O'rnatish
+### Admin uchun dissertatsiya hisoboti
+
+`/admin` → **📄 Dissertatsiya PDF** quyidagilarni beradi:
+
+- asosiy natijalar va material-metodlar bo'limi (formulalar, statistik usullar);
+- 1-jadval: ishtirokchilar tavsifi, M ± SD va Me [Q1; Q3], erkak va ayol uchun alohida, p (Mann–Whitney);
+- HOMA-IR toifalari; IR prevalentligi 95% CI (Wilson) bilan, jins, yosh va BMI kesimida, p (χ²/Fisher);
+- HOMA-IR ning yosh, BMI, bel, glukoza, insulin va FINDRISC bilan Spearman korrelyatsiyasi;
+- **populyatsiyaga xos cutoff**: metabolik sog'lom guruhda HOMA-IR P75 (Ascaso 2003 yondashuvi);
+- FINDRISC toifalari, takroriy o'lchovlar (Wilcoxon), rasmlar, cheklovlar, adabiyotlar.
+
+**📗 Excel** fayli anonim ma'lumotlarni va tayyor jadvallarni o'z ichiga oladi. **🧾 CSV** SPSS, R va pandas uchun.
+Eksportlarda ism ham, Telegram ID ham bo'lmaydi, faqat `S0001…` kodi qoladi.
+
+**Metodologiya.** Kesma tahlilda har bir sub'ekt bir marta, o'zining birinchi laborator
+o'lchovi bilan hisoblanadi. Takroriy o'lchovlar faqat dinamika bo'limiga kiradi.
+
+## Serverga o'rnatish (Docker)
 
 ```bash
-# 1. Loyihani ko'chiring
-cd homa-ir-bot
-
-# 2. Virtual environment
-python3 -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
-
-# 3. Kutubxonalar
-pip install -r requirements.txt
-
-# 4. Token va sozlamalar
+git clone https://github.com/Isroilov-7/homa-ir /opt/homa-ir && cd /opt/homa-ir
 cp .env.example .env
-# .env ni tahrirlang: BOT_TOKEN qo'ying (BotFader'dan yangisi!)
-
-# 5. Ishga tushirish
-python bot.py
+read -s -p "BOT_TOKEN: " T && sed -i "s|^BOT_TOKEN=.*|BOT_TOKEN=$T|" .env && unset T; echo
+mkdir -p data && chown 10001:10001 data
+docker compose up -d --build
+docker compose logs --tail 20 bot          # "HOMA-IR bot v3.0.0 ishga tushdi"
+sudo bash scripts/install_backup_cron.sh   # har kuni zaxira: data/backups
 ```
 
-## Muhim: Token xavfsizligi
+Yangilash: `git pull && docker compose up -d --build`.
+Eski v2 bazasi (`health.db`) bo'lsa, uni `data/health.db` ga ko'chiring. Bot ishga tushganda
+uni avtomatik yangilaydi, ma'lumotlar saqlanib qoladi.
 
-Sizning eski tokeningiz (`8446153026:AAFx2kM-kgBn9soI6KSp14Fjp9-MuMgeJYA`)
-chatga qo'yilgan va bir necha kodda ochiq bor edi.
+Resurslar: ~180 MB RAM, admin hisobotida ~330 MB gacha. Chegara 450 MB va 0.5 CPU.
+Port ochilmaydi, konteyner faqat o'qish rejimida va root huquqisiz ishlaydi.
 
-**Hoziroq bajaring:**
-1. `@BotFather` → `/mybots` → botingizni tanlang → API Token → **Revoke current token**
-2. Yangi tokenni faqat `.env` fayliga qo'ying
-3. `.env` faylni **hech qachon** git'ga qo'shmang (`.gitignore` qo'shing)
-
-## Fayllar
-
-```
-homa-ir-bot/
-├── bot.py               # Asosiy bot (routing, handlers)
-├── calculator.py        # Klinik hisob-kitoblar (FINDRISC, HOMA-IR, BMI)
-├── pdf_report.py        # PDF generator
-├── research_export.py   # Anonim CSV eksport (tadqiqot uchun)
-├── .env.example         # Konfiguratsiya namunasi
-├── requirements.txt     # Python bog'lanishlar
-└── README.md            # Bu fayl
-```
-
-## Tadqiqot uchun ma'lumot eksport
+## Ishlab chiqish
 
 ```bash
-# Barcha ma'lumot
-python research_export.py --out barcha.csv
-
-# Faqat anonim rozilik berganlar (etika komissiyasi uchun ma'qulroq)
-python research_export.py --anon --out anonim.csv
-
-# Ma'lum sanadan keyin
-python research_export.py --after 2026-01-01 --out yangi.csv
+python -m venv .venv && . .venv/bin/activate
+pip install -r requirements-dev.txt
+ruff check . && pytest -q        # 50+ test: formulalar, statistika, migratsiya, bot oqimlari
+BOT_TOKEN=... python bot.py
 ```
 
-CSV `subject_id` (S00001, S00002…) bilan chiqadi — Telegram ID yo'q,
-ism yo'q. To'g'ridan-to'g'ri SPSS/R/pandas'ga import qilinadi.
+| Fayl | Vazifasi |
+|---|---|
+| `app/calculator.py` | Klinik formulalar (HOMA-IR, HOMA-β, QUICKI, FINDRISC, BMI, WHtR) |
+| `app/analytics.py` | Bemor dinamikasi |
+| `app/stats.py` | Kogorta statistikasi (dissertatsiya) |
+| `app/charts.py` | Grafiklar |
+| `app/reports/` | Bemor PDF, tadqiqot PDF, Excel/CSV |
+| `app/handlers/` | Bot oqimlari: start, tezkor, to'liq, tarix, admin |
+| `app/db.py` | SQLite + avtomatik migratsiya |
 
-### O'zbek populyatsiyasi uchun HOMA-IR cutoff
+## Xavfsizlik
 
-Yetarli ma'lumot yig'ilgach (masalan, N=200+), CSV'ni R'ga import qiling
-va sog'lom guruhning 75-persentilini hisoblang. Bu — sizning populyatsiyangiz
-uchun aniq cutoff bo'ladi va nashrga tayyor ma'lumot beradi.
+- Token faqat `.env` da turadi. `.env`, `data/` va `*.db` git'ga tushmaydi.
+- Eski token git tarixida qolgan, lekin bekor qilingan. Har ehtimolga qarshi uni yana bir bor @BotFather'da tekshiring.
+- Bazada tibbiy ma'lumot bor: zaxira nusxalarni boshqalarga yubormang.
 
-```r
-library(dplyr)
-data <- read.csv("anonim.csv")
-healthy <- data %>% filter(findrisc_band == "past" & is.na(fasting_glucose) | fasting_glucose < 5.6)
-cutoff <- quantile(healthy$homa_ir, 0.75, na.rm = TRUE)
-cat("Uzbek cutoff (P75):", cutoff, "\n")
-```
+## Manbalar
 
-## Deploy
+Matthews 1985 (HOMA), Katz 2000 (QUICKI), Lindström & Tuomilehto 2003 (FINDRISC),
+Bonora 2000, Ascaso 2003, WHO 2004 (Osiyo BMI), IDF 2006, Ashwell 2012 (WHtR), ADA 2024.
 
-### VPS (tavsiya etilgan)
-- **Railway** (7$/oy) — GitHub push → auto deploy
-- **Hetzner CPX11** (~4€/oy) — sizniki nazorat
-- **PythonAnywhere** — bepul, cheklangan
-
-### systemd unit misoli
-
-```ini
-# /etc/systemd/system/homa-bot.service
-[Unit]
-Description=HOMA-IR Bot
-After=network.target
-
-[Service]
-Type=simple
-User=botuser
-WorkingDirectory=/home/botuser/homa-ir-bot
-EnvironmentFile=/home/botuser/homa-ir-bot/.env
-ExecStart=/home/botuser/homa-ir-bot/venv/bin/python bot.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-## Klinik izohlar
-
-Bu bot **skrining** vositasi, tashxis emas. Real klinikada:
-
-1. **FINDRISC** — WHO va IDF tomonidan tavsiya etilgan
-2. **HOMA-IR > 2.5** — insulin rezistentligi (yevropoid populyatsiyasi;
-   sizning tadqiqotingiz o'zbek populyatsiyasi uchun aniq raqam beradi)
-3. Har qanday **YUQORI** yoki **JUDA YUQORI** natija → endokrinolog
-
-## Keyingi qadamlar
-
-- [ ] Prometheus metrikalari (foydalanish statistikasi)
-- [ ] `/reminder` — 3 oyda qayta baholash eslatmasi
-- [ ] Ko'p tillilik (rus/ingliz)
-- [ ] HbA1c qo'shish (agar mavjud bo'lsa, aniqroq)
-- [ ] Endokrinolog ro'yxati (viloyatlar bo'yicha)
-- [ ] Docker-compose
-
-## Litsenziya
-
-MIT (yoki o'zingiz tanlagan). Klinik shkalalar ochiq nashrlarda.
+> Bot skrining vositasi, tashxis qo'ymaydi. Yuqori natija chiqsa, endokrinologga murojaat qilish kerak.
