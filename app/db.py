@@ -193,7 +193,7 @@ async def all_screenings() -> list[dict]:
     """Tadqiqot tahlili uchun: har yozuv + foydalanuvchi ma'lumoti."""
     async with connect() as db:
         cur = await db.execute(
-            """SELECT s.*, u.is_anonymous, u.birth_year
+            """SELECT s.*, u.is_anonymous, u.birth_year, u.tg_username
                FROM screenings s LEFT JOIN users u ON u.user_id = s.user_id
                ORDER BY s.created_at, s.id"""
         )

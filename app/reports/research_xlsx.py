@@ -1,5 +1,6 @@
 """
 Tadqiqot eksporti: anonim yozuvlar (CSV/Excel) + tayyor jadvallar (Excel).
+Ismli ro'yxat — alohida, faqat admin uchun (build_patients_xlsx).
 
 SPSS / R / Python'ga to'g'ridan-to'g'ri import qilinadi. Ism va Telegram ID
 chiqmaydi — faqat subject_id (S0001…). Kodlash "Lug'at" varag'ida.
@@ -183,6 +184,66 @@ def build_xlsx(rows: list[dict], rep: dict) -> bytes:
 
     sheet(wb.create_sheet("Lug'at"), ["Ustun", "Ma'nosi"], [list(c) for c in COLUMNS], [22, 70])
 
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+PATIENT_COLUMNS: list[tuple[str, str, int]] = [
+    # (kalit, sarlavha, ustun kengligi)
+    ("subject_id", "Kod (anonim faylda)", 12),
+    ("full_name", "Ism-familiya", 28),
+    ("telegram", "Telegram", 18),
+    ("age", "Yosh", 7),
+    ("sex", "Jins", 7),
+    ("date", "Sana", 17),
+    ("visit_no", "O'lchov №", 10),
+    ("mode", "Rejim", 9),
+    ("glucose_mmol", "Glukoza, mmol/L", 14),
+    ("insulin_uiu", "Insulin, μU/mL", 14),
+    ("homa_ir", "HOMA-IR", 10),
+    ("homa_class", "HOMA-IR toifasi", 26),
+    ("bmi", "BMI", 8),
+    ("waist_cm", "Bel, sm", 8),
+    ("findrisc", "FINDRISC", 10),
+    ("findrisc_band", "FINDRISC toifasi", 16),
+]
+
+
+def build_patients_xlsx(rows: list[dict]) -> bytes:
+    """
+    FAQAT admin uchun: ism-familiya va yosh bilan bemorlar ro'yxati.
+    subject_id anonim fayldagi kod bilan bir xil — ikkalasini bog'lash mumkin.
+    Bu fayl dissertatsiya/jurnalga yuborilmaydi (shaxsiy ma'lumot).
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    ordered = sorted(rows, key=lambda x: (str(x.get("created_at")), x.get("id", 0)))
+    recs = anonymized_records(ordered)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Bemorlar"
+    ws.append([title for _, title, _ in PATIENT_COLUMNS])
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="991B1B")
+        cell.alignment = Alignment(vertical="center", wrap_text=True)
+    for raw, rec in zip(ordered, recs):
+        rec = dict(rec, full_name=raw.get("patient_name") or "",
+                   telegram=f"@{raw['tg_username']}" if raw.get("tg_username") else "")
+        ws.append([rec.get(key) for key, _, _ in PATIENT_COLUMNS])
+    for i, (_, _, width) in enumerate(PATIENT_COLUMNS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = width
+    ws.freeze_panes = "C2"
+    ws.auto_filter.ref = ws.dimensions
+    note = wb.create_sheet("Eslatma")
+    note["A1"] = "⚠️ Shaxsiy tibbiy ma'lumot. Faqat tadqiqotchi uchun."
+    note["A2"] = "Dissertatsiya, jurnal va boshqalarga anonim Excel/CSV faylni yuboring."
+    note["A3"] = "\"Kod\" ustuni anonim fayldagi subject_id bilan bir xil."
+    note["A1"].font = Font(bold=True, color="991B1B")
+    note.column_dimensions["A"].width = 80
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue()

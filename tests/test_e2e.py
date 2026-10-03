@@ -270,7 +270,8 @@ async def test_dynamics_pdf_history_and_admin(h):
 
     assert "Admin panel" in texts(await h.text("/admin"))
     assert "Tadqiqot xulosasi" in texts(await h.click("adm:stats"))
-    for cb, ext in (("adm:pdf", ".pdf"), ("adm:xlsx", ".xlsx"), ("adm:csv", ".csv"), ("adm:backup", ".db")):
+    for cb, ext in (("adm:pdf", ".pdf"), ("adm:xlsx", ".xlsx"), ("adm:csv", ".csv"), ("adm:backup", ".db"),
+                    ("adm:patients", ".xlsx")):
         d = docs(await h.click(cb))
         assert d and d[0].document.filename.endswith(ext), cb
 

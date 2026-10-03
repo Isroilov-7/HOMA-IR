@@ -68,3 +68,20 @@ def test_research_pdf_small_sample_unreliable_cutoff():
     rep = stats.cohort_report(rows)
     assert rep["reference"]["p75"] is not None and not rep["reference"]["reliable"]
     assert _is_pdf(build_research_pdf(rows, rep))
+
+
+def test_patients_xlsx_has_names_and_age_but_research_files_stay_anonymous():
+    from openpyxl import load_workbook
+
+    from app.reports.research_xlsx import build_patients_xlsx
+
+    rows = [dict(r, tg_username="ali_v") for r in make_rows(5)]
+    ws = load_workbook(BytesIO(build_patients_xlsx(rows)))["Bemorlar"]
+    header = [c.value for c in ws[1]]
+    first = dict(zip(header, [c.value for c in ws[2]]))
+    assert first["Ism-familiya"].startswith("Bemor ") and first["Yosh"] == rows[0]["age"]
+    assert first["Telegram"] == "@ali_v" and first["Kod (anonim faylda)"] == "S0001"
+    assert ws.max_row == len(rows) + 1
+    # anonim fayllarga ism tushmaydi
+    anon = load_workbook(BytesIO(build_xlsx(rows, stats.cohort_report(rows))))["Ma'lumotlar"]
+    assert not any("Bemor" in str(c.value) for row in anon.iter_rows() for c in row)

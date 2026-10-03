@@ -17,7 +17,7 @@ from aiogram.types import BufferedInputFile, CallbackQuery, InputMediaPhoto, Mes
 from app import backup, charts, db, stats, ui
 from app.config import settings
 from app.reports.research_pdf import build_research_pdf
-from app.reports.research_xlsx import build_csv, build_xlsx
+from app.reports.research_xlsx import build_csv, build_patients_xlsx, build_xlsx
 from app.utils import TASHKENT
 
 router = Router(name="admin")
@@ -31,6 +31,7 @@ def admin_kb():
         [("🔬 Tadqiqot statistikasi", "adm:stats")],
         [("📄 Dissertatsiya PDF", "adm:pdf"), ("📗 Excel", "adm:xlsx")],
         [("🧾 CSV (SPSS/R)", "adm:csv"), ("📉 Grafiklar", "adm:charts")],
+        [("📒 Bemorlar ro'yxati (ism, yosh)", "adm:patients")],
         [("💾 Zaxira nusxa", "adm:backup"), ("🔄 Yangilash", "adm:home")],
         [("🏠 Bosh menyu", "home")],
     )
@@ -98,6 +99,19 @@ async def admin_xlsx(c: CallbackQuery):
     await c.message.answer_document(
         BufferedInputFile(data, filename=f"HOMA-IR_tadqiqot_{stamp}.xlsx"),
         caption="📗 Anonim ma'lumotlar + 1-jadval, IR prevalentligi, korrelyatsiya, cutoff, dinamika, lug'at.")
+
+
+@router.callback_query(F.data == "adm:patients")
+async def admin_patients(c: CallbackQuery):
+    await c.answer("Ro'yxat tayyorlanmoqda…")
+    rows = await db.all_screenings()
+    data = await asyncio.to_thread(build_patients_xlsx, rows)
+    stamp = datetime.now(TASHKENT).strftime("%Y%m%d")
+    await c.message.answer_document(
+        BufferedInputFile(data, filename=f"HOMA-IR_bemorlar_ismli_{stamp}.xlsx"),
+        caption="📒 Bemorlar ro'yxati: ism-familiya, yosh, Telegram, natijalar.\n"
+                "⚠️ Shaxsiy ma'lumot: boshqalarga yubormang. Dissertatsiya va jurnal uchun "
+                "<b>📗 Excel</b> (anonim) faylidan foydalaning.")
 
 
 @router.callback_query(F.data == "adm:csv")
