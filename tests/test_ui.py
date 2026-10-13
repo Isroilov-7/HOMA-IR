@@ -45,6 +45,9 @@ def test_main_menu_has_only_three_buttons_and_share_moved_to_about():
     assert cbs == ["quick:start", "history", "about"]
     admin = [b.callback_data for row in ui.main_menu(1).inline_keyboard for b in row]   # conftest: ADMIN_IDS=1
     assert admin[-1] == "adm:home" and len(admin) == 4
-    about = [b.callback_data or b.url for row in ui.about_kb().inline_keyboard for b in row]
+    about = [b.callback_data or b.url for row in ui.about_kb(admin=True).inline_keyboard for b in row]
     assert {"screen:start", "remind:toggle", "privacy", "methods", "home"} <= set(about)
     assert any(u.startswith("https://t.me/share/url") for u in about if u)
+    # oddiy foydalanuvchiga qo'shimcha bo'limlar ko'rinmaydi (faqat admin profilida)
+    plain = [b.callback_data or b.url for row in ui.about_kb().inline_keyboard for b in row]
+    assert plain == ["quick:start", "home"]

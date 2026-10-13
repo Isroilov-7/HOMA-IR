@@ -27,6 +27,15 @@ USER_COMMANDS = [
 ]
 
 
+# Admin (egasi) menyusida qo'shimcha bo'limlar ham (2026-10-13: oddiy foydalanuvchiga ko'rinmaydi)
+ADMIN_EXTRA_COMMANDS = [
+    BotCommand(command="admin", description="Admin panel"),
+    BotCommand(command="screen", description="To'liq skrining (FINDRISC + HOMA-IR)"),
+    BotCommand(command="dynamics", description="Natijalar dinamikasi"),
+    BotCommand(command="methods", description="Usullar va me'yorlar"),
+]
+
+
 async def _set_profile(bot: Bot) -> None:
     """Telegram qidiruvi (nom) va «Bu bot nima qila oladi?» matnlari. Faqat o'zgarganda yuboriladi."""
     try:
@@ -46,7 +55,7 @@ async def _set_commands(bot: Bot) -> None:
     for admin_id in settings.admin_ids:
         try:
             await bot.set_my_commands(
-                USER_COMMANDS + [BotCommand(command="admin", description="Admin panel")],
+                USER_COMMANDS + ADMIN_EXTRA_COMMANDS,
                 scope=BotCommandScopeChat(chat_id=admin_id))
         except Exception:  # admin hali botga yozmagan bo'lsa
             log.warning("Admin %s uchun buyruqlar o'rnatilmadi", admin_id)

@@ -9,6 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import BufferedInputFile, CallbackQuery, LinkPreviewOptions, Message
 
 from app import db, ui
+from app.config import settings
 from app.utils import esc, valid_full_name
 
 router = Router(name="common")
@@ -110,7 +111,8 @@ async def about(event: Message | CallbackQuery):
     """«❓ Bu nima?» — oddiy tilda tushuntirish + qo'shimcha bo'limlar."""
     msg = event.message if isinstance(event, CallbackQuery) else event
     user = await db.get_user(event.from_user.id)
-    await msg.answer(ui.ABOUT_SIMPLE, reply_markup=ui.about_kb((user or {}).get("reminders") != 0))
+    await msg.answer(ui.ABOUT_SIMPLE, reply_markup=ui.about_kb(
+        (user or {}).get("reminders") != 0, admin=event.from_user.id in settings.admin_ids))
     if isinstance(event, CallbackQuery):
         await event.answer()
 
@@ -148,7 +150,7 @@ async def toggle_reminders(c: CallbackQuery):
     await db.set_reminders(c.from_user.id, new)
     await c.answer("Qayta tekshiruv eslatmasi yoqildi 🔔" if new else "Eslatma o'chirildi 🔕",
                    show_alert=True)
-    await c.message.edit_reply_markup(reply_markup=ui.about_kb(new))
+    await c.message.edit_reply_markup(reply_markup=ui.about_kb(new, admin=c.from_user.id in settings.admin_ids))
 
 
 @router.message(Command("export"))

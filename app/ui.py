@@ -153,8 +153,11 @@ def main_menu(user_id: int, reminders_on: bool = True) -> InlineKeyboardMarkup:
     return kb(*rows)
 
 
-def about_kb(reminders_on: bool = True) -> InlineKeyboardMarkup:
-    """«❓ Bu nima?» ekrani: qo'shimcha bo'limlar shu yerda (bosh menyuni yuklamaslik uchun)."""
+def about_kb(reminders_on: bool = True, admin: bool = False) -> InlineKeyboardMarkup:
+    """«❓ Bu nima?» ekrani. Qo'shimcha bo'limlar (to'liq skrining, eslatma, maxfiylik, usullar, ulashish) faqat
+    adminga ko'rinadi (2026-10-13, egasi); oddiy foydalanuvchiga — test va bosh menyu (buyruqlar baribir ishlaydi)."""
+    if not admin:
+        return kb([("🧪 Testni boshlash", "quick:start")], [("🏠 Bosh menyu", "home")])
     return kb(
         [("🧪 Testni boshlash", "quick:start")],
         [("🩺 To'liq skrining (diabet xavfi)", "screen:start")],
