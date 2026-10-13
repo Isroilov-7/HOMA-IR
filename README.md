@@ -5,6 +5,11 @@ baholovchi Telegram bot. Dissertatsiya tadqiqoti uchun ma'lumot yig'adi va tahli
 
 ## Imkoniyatlar
 
+**Bosh ekran (2026-10-13):** `/start` — oddiy tildagi post va faqat 3 ta tugma: **🧪 Testni boshlash**,
+**📊 Natijalarim**, **❓ Bu nima?**. Glukoza kerak, insulin tavsiya etiladi ("insulin bo'lsa natija ancha
+aniq"). Qolgan bo'limlar (to'liq skrining, eslatma, maxfiylik, ulashish, ilmiy usullar) «❓ Bu nima?» ichida.
+Telegram'dagi nom: «Qand va insulin testi | Diabet xavfi | HOMA-IR» (koddan o'rnatiladi, `app/ui.py`).
+
 | Bo'lim | Nima qiladi |
 |---|---|
 | ⚡ **Tezkor HOMA-IR** | Faqat ism-familiya, yosh, glukoza, insulin → HOMA-IR, QUICKI, HOMA-β, tavsiyalar. Insulin bo'lmasa "hozircha yo'q": glukoza saqlanadi, 14 kunda to'liq tahlilga eslatma. Shifokor bir nechta bemorni kiritishi mumkin |

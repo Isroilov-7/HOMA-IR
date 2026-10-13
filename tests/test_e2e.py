@@ -109,19 +109,46 @@ async def h(tmp_db):
 
 
 async def test_onboarding_intro_prep_and_mandatory_full_name(h):
+    """2026-10-13: /start — oddiy tildagi post + 3 ta tugma; «🧪 Testni boshlash» -> tayyorgarlik va rozilik ->
+    ism-familiya -> to'g'ridan-to'g'ri testning 1-savoli (menyuga qaytmaydi)."""
     calls = await h.text("/start")
     out = texts(calls)
-    assert "Qandingiz normal" in out and "https://t.me/HomaIR_bot" in out and "Tahlilga to'g'ri tayyorgarlik" in out
-    share = [b.url for c in calls if getattr(c, "reply_markup", None)
-             for row in c.reply_markup.inline_keyboard for b in row if b.url]
-    assert share and "t.me/share/url" in share[0]
+    assert "Qandingiz normal" in out and "https://t.me/HomaIR_bot" in out and "natija ancha aniq" in out
+    cbs = [b.callback_data for c in calls if getattr(c, "reply_markup", None)
+           for row in c.reply_markup.inline_keyboard for b in row]
+    assert cbs[:3] == ["quick:start", "history", "about"]
     assert "Rozimisiz" not in out and "Ma'lumotlaringiz" not in out  # eski rozilik bloki olib tashlangan
+    assert "tahlilga to'g'ri tayyorgarlik" in texts(await h.click("quick:start"))
     assert "Ism va familiyangizni" in texts(await h.click("begin"))
     assert "to'liq yozing" in texts(await h.text("Vali"))       # bitta so'z — qabul qilinmaydi
     assert "to'liq yozing" in texts(await h.text("Ali 123"))    # raqam — qabul qilinmaydi
-    assert "Ro'yxatdan o'tdingiz" in texts(await h.text("Aliyev Vali"))
+    out = texts(await h.text("Aliyev Vali"))
+    assert "Ro'yxatdan o'tdingiz" in out and "1/4" in out and "Kim uchun" in out
     user = await db.get_user(USER_ID)
     assert user["display_name"] == "Aliyev Vali" and user["is_anonymous"] == 0
+    # ro'yxatdan keyin darhol test davom etadi
+    await h.click("qname:me")
+    await h.text("40")
+    calls = await h.text("5.4")
+    out = texts(calls)
+    assert "insulin" in out.lower() and "natija ancha aniq" in out and "dastlabki baho" in out
+    btns = [(b.text, b.callback_data) for c in calls if getattr(c, "reply_markup", None)
+            for row in c.reply_markup.inline_keyboard for b in row]
+    assert btns == [("➡️ Insulin yo'q — faqat qand bo'yicha", "noins")]
+
+
+async def test_about_and_history_screens(h):
+    """«❓ Bu nima?» oddiy tilda + qo'shimcha bo'limlar; natija yo'q bo'lsa — test taklifi."""
+    await h.text("/start")
+    calls = await h.click("about")
+    assert "insulin rezistentligi" in texts(calls) and "HOMA-IR" in texts(calls)
+    cbs = [b.callback_data for c in calls if getattr(c, "reply_markup", None)
+           for row in c.reply_markup.inline_keyboard for b in row]
+    assert "screen:start" in cbs and "methods" in cbs
+    assert "Matthews" in texts(await h.click("methods"))
+    await _register(h)
+    out = await h.click("history")
+    assert "Hozircha natija yo'q" in texts(out)
 
 
 async def test_old_anonymous_user_is_asked_for_name(h):

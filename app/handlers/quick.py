@@ -15,7 +15,7 @@ from app import db, ui
 from app.analytics import verdict
 from app.calculator import classify_glucose, glucose_from_input, glucose_only_recs, quick_report
 from app.config import settings
-from app.handlers.common import ask_name, needs_name
+from app.handlers.common import ask_name, needs_name, show_prep
 from app.utils import esc, parse_number, valid_full_name
 
 router = Router(name="quick")
@@ -57,15 +57,21 @@ def compare_line(prev: dict | None, value: float, key: str = "homa_ir", label: s
 
 async def ask_glucose(target: Message, prefix: str = "") -> None:
     await target.answer(
-        f"{prefix}🩸 Och qoringa <b>glukoza</b> qiymati?\n"
-        "<i>mmol/L, masalan 5.4. mg/dL kiritsangiz (masalan 97), avtomatik o'giriladi.</i>",
+        f"{prefix}🩸 Och qoringa <b>glukoza (qand)</b> qiymati?\n"
+        "<i>Tahlil qog'ozidagi raqam: mmol/L (masalan 5.4) yoki mg/dL (masalan 97) — "
+        "mg/dL avtomatik o'giriladi.</i>",
         reply_markup=ui.opt_kb())
 
 
 async def ask_insulin(target: Message, prefix: str = "") -> None:
+    """Insulin ixtiyoriy, lekin taklif qilinadi (2026-10-13, egasi: hamma ham insulin topshirmaydi)."""
     await target.answer(
-        f"{prefix}💉 Och qoringa <b>insulin</b> qiymati?\n<i>μU/mL (mkME/ml), masalan 11.2</i>",
-        reply_markup=ui.opt_kb([("❌ Insulin tahlili hozircha yo'q", "noins")]))
+        f"{prefix}💉 Och qoringa <b>insulin</b> qiymati?\n"
+        "<i>μU/mL (mkME/ml), masalan 11.2</i>\n\n"
+        "💡 <b>Insulin bo'lsa, natija ancha aniq:</b> HOMA-IR hisoblanadi va insulin rezistentligi "
+        "qand hali normal bo'lganda ham ko'rinadi.\n"
+        "Tahlilingizda insulin bo'lmasa — pastdagi tugmani bosing, qand bo'yicha dastlabki baho beraman.",
+        reply_markup=ui.opt_kb([("➡️ Insulin yo'q — faqat qand bo'yicha", "noins")]))
 
 
 def read_glucose(text: str | None) -> tuple[float | None, str]:
@@ -94,15 +100,21 @@ async def quick_start(event: Message | CallbackQuery, state: FSMContext):
     user = await db.get_user(event.from_user.id)
     await state.clear()
     if needs_name(user):
-        if not user:
-            await msg.answer("Avval /start bosing.")
+        if not user:     # yangi: tayyorgarlik + rozilik -> ism -> test (set_name davom ettiradi)
+            await show_prep(msg)
         else:
             await ask_name(msg, state)
         return
-    rows = [[(f"👤 {user['display_name'][:30]}", "qname:me")]]
+    await begin_quick(msg, state, user)
+
+
+async def begin_quick(msg: Message, state: FSMContext, user: dict) -> None:
+    """Testning 1-savoli. O'zi uchun — bitta tugma; shifokor bemor ismini yozadi."""
+    rows = [[(f"👤 O'zim: {user['display_name'][:28]}", "qname:me")]]
     await msg.answer(
-        "⚡ <b>Tezkor HOMA-IR</b> (4 ta savol)\n\n"
-        "1/4. Bemorning <b>ism-familiyasini</b> yozing yoki tanlang:",
+        "🧪 <b>Test</b> — 4 ta qisqa savol\n\n"
+        "1/4. Kim uchun tekshiramiz? O'zingiz bo'lsangiz — tugmani bosing, boshqa odam uchun — "
+        "uning <b>ism-familiyasini</b> yozing:",
         reply_markup=ui.opt_kb(*rows))
     await state.set_state(Quick.name)
 

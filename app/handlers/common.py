@@ -41,6 +41,8 @@ async def show_menu(target: Message, user_id: int, text: str | None = None) -> N
 
 @router.message(CommandStart())
 async def cmd_start(m: Message, state: FSMContext):
+    """Yangi foydalanuvchi: oddiy tildagi post + 3 ta tugma (2026-10-13). Ro'yxat (ism, rozilik) — faqat
+    «🧪 Testni boshlash» bosilganda, ya'ni odam nima uchunligini tushungandan keyin."""
     await state.clear()
     user = await db.get_user(m.from_user.id)
     if user and not needs_name(user):
@@ -50,8 +52,12 @@ async def cmd_start(m: Message, state: FSMContext):
         await ask_name(m, state)
         return
     await m.answer(ui.INTRO, link_preview_options=LinkPreviewOptions(is_disabled=True),
-                   reply_markup=ui.kb([("📤 Do'stlarga ulashish", ui.share_url())]))
-    await m.answer(ui.PREP, reply_markup=ui.kb([("▶️ Boshlash", "begin")]))
+                   reply_markup=ui.main_menu(m.from_user.id))
+
+
+async def show_prep(msg: Message) -> None:
+    """Birinchi test oldidan: tayyorgarlik + tadqiqot roziligi (dissertatsiya uchun majburiy)."""
+    await msg.answer(ui.PREP, reply_markup=ui.kb([("▶️ Davom etish", "begin")]))
 
 
 @router.callback_query(F.data == "begin")
@@ -69,7 +75,9 @@ async def set_name(m: Message, state: FSMContext):
     await db.save_user(m.from_user.id, m.from_user.username or "", name, None, False)
     await state.clear()
     await m.answer(f"✅ Rahmat, <b>{esc(name)}</b>! Ro'yxatdan o'tdingiz.")
-    await show_menu(m, m.from_user.id, "Boshlash uchun bo'limni tanlang:")
+    # Ro'yxatdan keyin odam testni boshlamoqchi edi — menyuga emas, to'g'ridan-to'g'ri testga
+    from app.handlers.quick import begin_quick
+    await begin_quick(m, state, await db.get_user(m.from_user.id))
 
 
 # ---------------- umumiy ----------------
@@ -99,8 +107,20 @@ async def cmd_help(m: Message):
 @router.message(Command("about"))
 @router.callback_query(F.data == "about")
 async def about(event: Message | CallbackQuery):
+    """«❓ Bu nima?» — oddiy tilda tushuntirish + qo'shimcha bo'limlar."""
     msg = event.message if isinstance(event, CallbackQuery) else event
-    await msg.answer(ui.ABOUT, reply_markup=ui.kb([("🏠 Bosh menyu", "home")]))
+    user = await db.get_user(event.from_user.id)
+    await msg.answer(ui.ABOUT_SIMPLE, reply_markup=ui.about_kb((user or {}).get("reminders") != 0))
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+
+
+@router.message(Command("methods"))
+@router.callback_query(F.data == "methods")
+async def methods(event: Message | CallbackQuery):
+    """Ilmiy usullar va me'yorlar (shifokor va tadqiqotchilar uchun)."""
+    msg = event.message if isinstance(event, CallbackQuery) else event
+    await msg.answer(ui.ABOUT, reply_markup=ui.kb([("❓ Bu nima?", "about"), ("🏠 Bosh menyu", "home")]))
     if isinstance(event, CallbackQuery):
         await event.answer()
 
@@ -128,7 +148,7 @@ async def toggle_reminders(c: CallbackQuery):
     await db.set_reminders(c.from_user.id, new)
     await c.answer("Qayta tekshiruv eslatmasi yoqildi 🔔" if new else "Eslatma o'chirildi 🔕",
                    show_alert=True)
-    await c.message.edit_reply_markup(reply_markup=ui.main_menu(c.from_user.id, new))
+    await c.message.edit_reply_markup(reply_markup=ui.about_kb(new))
 
 
 @router.message(Command("export"))

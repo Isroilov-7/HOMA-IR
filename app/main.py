@@ -16,14 +16,13 @@ from app.reminders import reminder_loop
 
 log = logging.getLogger("bot")
 
+# Menyu tugmasida faqat asosiylari (2026-10-13: ko'p variant chalg'itadi). /screen, /dynamics, /methods,
+# /export, /delete ishlashda davom etadi — /help va «❓ Bu nima?» da ko'rsatiladi.
 USER_COMMANDS = [
     BotCommand(command="start", description="Bosh menyu"),
-    BotCommand(command="quick", description="Tezkor HOMA-IR"),
-    BotCommand(command="screen", description="To'liq skrining (FINDRISC + HOMA-IR)"),
-    BotCommand(command="dynamics", description="Natijalar dinamikasi"),
-    BotCommand(command="history", description="Natijalarim va PDF"),
-    BotCommand(command="about", description="Usullar va me'yorlar"),
-    BotCommand(command="help", description="Yordam"),
+    BotCommand(command="quick", description="Testni boshlash (qand + insulin)"),
+    BotCommand(command="history", description="Natijalarim"),
+    BotCommand(command="about", description="Bu nima?"),
     BotCommand(command="cancel", description="Bekor qilish"),
 ]
 

@@ -39,7 +39,8 @@ async def history(event: Message | CallbackQuery):
         await event.answer()
     rows = await db.user_screenings(event.from_user.id, limit=10)
     if not rows:
-        await msg.answer("Hozircha natija yo'q.", reply_markup=ui.main_menu(event.from_user.id))
+        await msg.answer("📊 Hozircha natija yo'q. Birinchi testni topshiring — natijalar shu yerda saqlanadi.",
+                         reply_markup=ui.kb([("🧪 Testni boshlash", "quick:start")], [("🏠 Bosh menyu", "home")]))
         return
     lines = ["🗂 <b>So'nggi natijalar</b> (PDF uchun tugmani bosing)\n"]
     buttons = []
@@ -50,7 +51,8 @@ async def history(event: Message | CallbackQuery):
         lines.append(f"{kind} №{r['id']} • {fmt_dt(r['created_at'])} • {esc(r.get('patient_name') or '—')}"
                      f" • {homa}{fr}")
         buttons.append((f"📄 №{r['id']}", f"pdf:{r['id']}"))
-    rows_kb = [buttons[i:i + 3] for i in range(0, len(buttons), 3)] + [[("🏠 Bosh menyu", "home")]]
+    rows_kb = [buttons[i:i + 3] for i in range(0, len(buttons), 3)] + [
+        [("📈 Dinamika (grafik)", "dyn"), ("🧪 Yangi test", "quick:start")], [("🏠 Bosh menyu", "home")]]
     await msg.answer("\n".join(lines), reply_markup=ui.kb(*rows_kb))
 
 
